@@ -35,6 +35,16 @@ public sealed class WrapperTranslationsController : ControllerBase
 
     public sealed record TranslationDto(string Key, string Path, string? Group, Dictionary<string, string> Values);
 
+    /// <summary>Unauthenticated readiness probe: true once the startup seeder has run.</summary>
+    [HttpGet("~/api/wrapper/health")]
+    public async Task<IActionResult> Health()
+    {
+        var seeded = await _dictionaryItemService.ExistsAsync(SeedMarkerKey);
+        var languages = (await _languageService.GetAllAsync()).Select(l => l.IsoCode).OrderBy(c => c).ToArray();
+        var rootCount = (await _dictionaryItemService.GetAtRootAsync()).Count(r => r.ItemKey != SeedMarkerKey);
+        return Ok(new { seeded, languages, rootGroups = rootCount });
+    }
+
     [HttpGet]
     public async Task<IActionResult> Get()
     {

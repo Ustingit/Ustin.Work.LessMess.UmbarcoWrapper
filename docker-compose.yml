@@ -19,12 +19,12 @@ services:
     volumes:
       - umbraco-data:/app/umbraco/Data
     healthcheck:
-      # /umbraco returns the backoffice login (200) once the app has finished booting.
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/umbraco/ > /dev/null || exit 1"]
+      # Healthy only once the custom API is routed AND the startup seeder has run.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/wrapper/health | grep -q '\"seeded\":true' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 90s
+      start_period: 120s
 
   wrapper:
     build:
