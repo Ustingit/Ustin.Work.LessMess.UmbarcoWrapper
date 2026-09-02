@@ -5,4 +5,7 @@
   <Folder Name="/src/">
     <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Web.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ustin.Work.LessMess.UmbarcoWrapper.Web.Tests.csproj" />
+  </Folder>
 </Solution>
