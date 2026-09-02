@@ -1,10 +1,16 @@
 @page
-@model LoginModel
+@model Ustin.Work.LessMess.UmbarcoWrapper.Web.Pages.V2.LoginModel
 @{
-    ViewData["Title"] = "Sign in";
+    ViewData["Title"] = "Sign in (v2 · back-office JWT)";
 }
 <div class="card">
-    <h1>Sign in</h1>
+    <h1>Sign in <span class="variant">v2 · back-office session</span></h1>
+    <p class="alt">
+        Authenticates a <strong>back-office user</strong> against Umbraco's stock OpenIddict
+        server (PKCE). Modern Umbraco keeps the JWT server-side (BFF pattern), so the
+        wrapper stores the returned <strong>HttpOnly cookie set</strong> and replays it on
+        the Management API.
+    </p>
 
     @if (!string.IsNullOrEmpty(Model.Message))
     {
@@ -25,6 +31,5 @@
         <button type="submit" class="primary">Sign in</button>
     </form>
 
-    <p class="alt">No account yet? <a asp-page="/Register">Create one</a>.</p>
-    <p class="alt">Or try <a asp-page="/V2/Login">v2 · back-office JWT</a>.</p>
+    <p class="alt">Compare with <a asp-page="/Login">v1 (member cookie proxy)</a>.</p>
 </div>
