@@ -74,6 +74,52 @@ docker compose logs wrapper | grep audit
 
 ---
 
+## Two auth implementations, side by side
+
+The wrapper ships **two independent flows** so they can be compared. They use
+separate session cookies (`wrapper_sid` vs `wrapper_bo_sid`), so you can be
+signed into both at once.
+
+| | **v1 — member cookie proxy** | **v2 — back-office session (BFF)** |
+|---|---|---|
+| Screens | `/Login`, `/Register`, `/Translations` | `/V2/Login`, `/V2/Translations` |
+| Who signs in | Umbraco **member** (front-end user) | Umbraco **back-office user** |
+| Server-side code in the CMS | **yes** — custom `/api/wrapper/*` controllers | **none** — stock endpoints only |
+| Mechanism | `IMemberSignInManager` issues a cookie; wrapper stores & replays it | OAuth2 Authorization Code + PKCE against Umbraco's OpenIddict server |
+| Credential proof held | raw `Set-Cookie` string | the encrypted HttpOnly **cookie set** (`UMB_UCONTEXT`, `umbAccessToken`, `umbRefreshToken`) |
+| Translations source | custom `GET /api/wrapper/translations` | stock `GET /umbraco/management/api/v1/dictionary` |
+| Registration | supported (proxied) | n/a (back-office users are provisioned by an admin) |
+| Transport | HTTP ok | OpenIddict needs HTTPS unless `Global:UseHttps=false` |
+| Audit events | `register`, `login`, `translations.list`, `logout` | `backoffice.login`, `backoffice.translations.list`, `backoffice.logout` |
+
+### Why v2 is *not* "get a JWT"
+
+Umbraco 16.1+/17 runs the back office as a **BFF** (`HideBackOfficeTokensHandler`):
+`/authorize` and `/token` put the real PKCE code and the access/refresh **JWTs
+into encrypted, DataProtection-signed HttpOnly cookies** and return the literal
+string `[redacted]` in their place. On the way back in, Umbraco swaps `[redacted]`
+for the cookie value. So a client — including this wrapper — **cannot obtain a
+usable bearer token**; it can only carry the cookie set. v2 therefore does the
+full OAuth dance and then behaves like v1: it stores every `Set-Cookie` it
+collected and replays them (with `Authorization: Bearer [redacted]`) on the
+Management API.
+
+**v2 flow** (all server-to-server inside the wrapper, no browser):
+
+1. `POST …/security/back-office/login` `{username,password}` → `Set-Cookie: UMB_UCONTEXT=…`
+2. `GET  …/security/back-office/authorize?client_id=umbraco-back-office&response_type=code&code_challenge=…` (with that cookie) → `302` with `code=[redacted]` + `Set-Cookie: umbPkceCode=…`
+3. `POST …/security/back-office/token` (`grant_type=authorization_code`, `code=[redacted]`, `code_verifier`, PKCE cookie) → `200` with `access_token:"[redacted]"` + `Set-Cookie: umbAccessToken=… , umbRefreshToken=…`
+4. Management API calls carry `Authorization: Bearer [redacted]` **and** the cookie set. Refresh: `grant_type=refresh_token`, `refresh_token=[redacted]`.
+
+v2 sign-in in this repo uses the unattended admin: **`admin@wrapper.local` / `One-Two-Three-Four1!`**
+(Umbraco sets the back-office username to the email). It does not work if the
+user has 2FA or is behind an external SSO — those need the IdP, not Umbraco's form.
+
+Local only: the compose file sets `Umbraco:CMS:Global:UseHttps=false` so OpenIddict
+issues over plain HTTP. A real deployment leaves that at its default (`true`) and
+fronts Umbraco with TLS; the wrapper can also trust a self-signed cert on a
+staging box via `Umbraco:AllowInvalidCertificate=true`.
+
 ## Tests
 
 * `tests/Ustin.Work.LessMess.UmbarcoWrapper.Web.Tests` — xUnit unit tests for the
