@@ -1,0 +1,20 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Umbraco runtime artifacts
+cms/umbraco/Data/
+cms/umbraco/Logs/
+cms/umbraco/mediacache/
+cms/wwwroot/media/
+**/appsettings.Local.json
+
+# Wrapper persistent layer (runtime state, mounted as a volume in Docker)
+src/App_Data/
+data/
+
+# OS
+.DS_Store

@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/.vs
+**/.git
+**/App_Data
+**/umbraco/Data
+**/umbraco/Logs
+data
+tests
+*.md
+!README.md

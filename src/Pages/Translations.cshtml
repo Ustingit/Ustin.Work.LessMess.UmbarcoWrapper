@@ -1,0 +1,34 @@
+@page
+@model TranslationsModel
+@{
+    ViewData["Title"] = "Translations";
+    ViewData["SignedInUser"] = Model.Username;
+}
+<h1>Translations</h1>
+<p class="count">@Model.Data!.Count entries from Umbraco · languages: @string.Join(", ", Model.Data.Languages)</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Group</th>
+            <th>Key</th>
+            @foreach (var lang in Model.Data.Languages)
+            {
+                <th>@lang</th>
+            }
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.Data.Items)
+        {
+            <tr class="@(item.Values.Count == 0 ? "group-head" : null)">
+                <td>@(item.Group ?? "—")</td>
+                <td class="key">@item.Key</td>
+                @foreach (var lang in Model.Data.Languages)
+                {
+                    <td>@(item.Values.TryGetValue(lang, out var value) ? value : "—")</td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>

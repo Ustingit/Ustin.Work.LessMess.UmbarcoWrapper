@@ -1,0 +1,48 @@
+services:
+  umbraco:
+    build:
+      context: .
+      dockerfile: cms/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__umbracoDbDSN: "Data Source=/app/umbraco/Data/Umbraco.sqlite.db;Cache=Shared;Foreign Keys=True;Pooling=True"
+      ConnectionStrings__umbracoDbDSN_ProviderName: "Microsoft.Data.Sqlite"
+      Umbraco__CMS__Unattended__InstallUnattended: "true"
+      Umbraco__CMS__Unattended__UnattendedUserName: "Administrator"
+      Umbraco__CMS__Unattended__UnattendedUserEmail: "admin@wrapper.local"
+      Umbraco__CMS__Unattended__UnattendedUserPassword: "One-Two-Three-Four1!"
+      Umbraco__CMS__Global__InstallMissingDatabase: "true"
+      Umbraco__CMS__Global__Id: "00000000-0000-0000-0000-000000000000"
+    ports:
+      - "8080:8080"
+    volumes:
+      - umbraco-data:/app/umbraco/Data
+    healthcheck:
+      # Healthy only once the custom API is routed AND the startup seeder has run.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/wrapper/health | grep -q '\"seeded\":true' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+  wrapper:
+    build:
+      context: .
+      dockerfile: src/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      Umbraco__BaseUrl: "http://umbraco:8080"
+      Wrapper__DataDirectory: "/data"
+    ports:
+      - "8090:8080"
+    volumes:
+      - wrapper-data:/data
+    depends_on:
+      umbraco:
+        condition: service_healthy
+
+volumes:
+  umbraco-data:
+  wrapper-data:
