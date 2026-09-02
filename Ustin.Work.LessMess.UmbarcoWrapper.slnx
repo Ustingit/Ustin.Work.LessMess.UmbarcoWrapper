@@ -1,2 +1,5 @@
 <Solution>
+  <Folder Name="/cms/">
+    <Project Path="cms/Ustin.Work.LessMess.UmbarcoWrapper.Cms.csproj" />
+  </Folder>
 </Solution>
