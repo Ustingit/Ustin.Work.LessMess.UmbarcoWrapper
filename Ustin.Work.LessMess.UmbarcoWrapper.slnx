@@ -2,4 +2,7 @@
   <Folder Name="/cms/">
     <Project Path="cms/Ustin.Work.LessMess.UmbarcoWrapper.Cms.csproj" />
   </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Web.csproj" />
+  </Folder>
 </Solution>
