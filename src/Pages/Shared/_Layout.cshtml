@@ -1,0 +1,29 @@
+@{
+    var signedInUser = ViewData["SignedInUser"] as string;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · LessMess wrapper</title>
+    <link rel="stylesheet" href="~/site.css" />
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand">LessMess · Umbraco wrapper</span>
+        @if (!string.IsNullOrEmpty(signedInUser))
+        {
+            <span class="session">
+                signed in as <strong>@signedInUser</strong>
+                <form method="post" asp-page="/Logout" class="inline">
+                    <button type="submit" class="link">Sign out</button>
+                </form>
+            </span>
+        }
+    </header>
+    <main>
+        @RenderBody()
+    </main>
+</body>
+</html>
