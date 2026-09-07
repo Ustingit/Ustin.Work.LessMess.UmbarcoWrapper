@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure</RootNamespace>
+    <AssemblyName>Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <!-- ASP.NET DI / auth / hosting types used by the shared registration extension. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ustin.Work.LessMess.UmbarcoWrapper.Core\Ustin.Work.LessMess.UmbarcoWrapper.Core.csproj" />
+  </ItemGroup>
+
+</Project>

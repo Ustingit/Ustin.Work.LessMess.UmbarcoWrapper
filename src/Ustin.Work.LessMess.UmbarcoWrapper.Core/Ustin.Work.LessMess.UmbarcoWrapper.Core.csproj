@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Ustin.Work.LessMess.UmbarcoWrapper.Core</RootNamespace>
+    <AssemblyName>Ustin.Work.LessMess.UmbarcoWrapper.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    Framework-agnostic contracts: auth DTOs, IMemberAuthProvider, options and the
+    integration-event types shared by the Api and the (future) Worker.
+    No package references on purpose.
+  -->
+
+</Project>

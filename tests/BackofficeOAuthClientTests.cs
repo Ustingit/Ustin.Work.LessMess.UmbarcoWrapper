@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using Ustin.Work.LessMess.UmbarcoWrapper.Web.Services;
+using Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;
 using Xunit;
 
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Web.Tests;
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Tests;
 
 public sealed class BackofficeOAuthClientTests
 {

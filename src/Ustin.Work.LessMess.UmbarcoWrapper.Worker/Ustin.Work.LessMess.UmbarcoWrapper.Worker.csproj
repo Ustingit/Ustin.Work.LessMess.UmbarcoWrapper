@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <RootNamespace>Ustin.Work.LessMess.UmbarcoWrapper.Worker</RootNamespace>
+    <AssemblyName>Ustin.Work.LessMess.UmbarcoWrapper.Worker</AssemblyName>
+    <UserSecretsId>ustin-provider-wrapper-worker</UserSecretsId>
+  </PropertyGroup>
+
+  <!--
+    Placeholder for background jobs / event handlers (outbox publisher, refresh-
+    token cleanup, bus consumers).
+
+    When it gets real work, add:
+      <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="..\Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure\Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.csproj" />
+      </ItemGroup>
+    then in Program.cs:  builder.AddWrapperMemberAuth();  builder.Services.AddHostedService<...>();
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+</Project>

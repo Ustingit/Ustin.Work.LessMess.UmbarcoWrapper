@@ -1,4 +1,4 @@
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Web.Tests;
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Tests;
 
 /// <summary>A throwaway directory that deletes itself at the end of a test.</summary>
 public sealed class TempDir : IDisposable
