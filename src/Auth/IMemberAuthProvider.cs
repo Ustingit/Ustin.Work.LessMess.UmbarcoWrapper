@@ -27,5 +27,9 @@ public interface IMemberAuthProvider
 
     Task<AuthResult<Unit>> ChangePasswordAsync(ChangePasswordRequest request, Guid memberKey, CancellationToken ct);
 
+    Task<AuthResult<Unit>> ConfirmEmailAsync(ConfirmEmailRequest request, CancellationToken ct);
+
+    Task<AuthResult<MessageResult>> ResendConfirmationAsync(ForgotPasswordRequest request, CancellationToken ct);
+
     Task<AuthResult<MemberProfile>> MeAsync(Guid memberKey, CancellationToken ct);
 }

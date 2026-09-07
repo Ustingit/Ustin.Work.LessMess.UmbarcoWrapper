@@ -73,6 +73,17 @@ public sealed class MemberAuthController : ControllerBase
         return MapNoContent(await _provider.ChangePasswordAsync(request, memberKey ?? Guid.Empty, ct));
     }
 
+    [HttpPost("email/confirm")]
+    public async Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request, CancellationToken ct) =>
+        MapNoContent(await _provider.ConfirmEmailAsync(request, ct));
+
+    [HttpPost("email/resend")]
+    public async Task<IActionResult> ResendConfirmation(ForgotPasswordRequest request, CancellationToken ct)
+    {
+        AuthResult<MessageResult> r = await _provider.ResendConfirmationAsync(request, ct);
+        return r.Ok ? Accepted(r.Value) : Problem(statusCode: r.Status, title: r.Title, detail: r.Detail);
+    }
+
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken ct)
     {

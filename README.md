@@ -123,8 +123,9 @@ staging box via `Umbraco:AllowInvalidCertificate=true`.
 ## Member auth API (for a mobile app) — `IMemberAuthProvider`
 
 A JSON API at **`/api/member-auth/v1`** (register, login, `token/refresh`,
-logout, `password/forgot`, `password/reset`, `password/change`, `me`) with two
-interchangeable implementations behind `MemberAuth:Mode`:
+logout, `password/forgot`, `password/reset`, `password/change`, `email/confirm`,
+`email/resend`, `me`) with two interchangeable implementations behind
+`MemberAuth:Mode`:
 
 | Mode | Backing | Use |
 |---|---|---|

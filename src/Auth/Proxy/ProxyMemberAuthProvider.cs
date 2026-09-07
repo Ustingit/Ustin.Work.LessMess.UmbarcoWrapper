@@ -51,6 +51,12 @@ public sealed class ProxyMemberAuthProvider : IMemberAuthProvider
     public Task<AuthResult<Unit>> ChangePasswordAsync(ChangePasswordRequest request, Guid memberKey, CancellationToken ct) =>
         PostNoContentAsync("api/member-auth/v1/password/change", request, forwardAuth: true, ct);
 
+    public Task<AuthResult<Unit>> ConfirmEmailAsync(ConfirmEmailRequest request, CancellationToken ct) =>
+        PostNoContentAsync("api/member-auth/v1/email/confirm", request, forwardAuth: false, ct);
+
+    public Task<AuthResult<MessageResult>> ResendConfirmationAsync(ForgotPasswordRequest request, CancellationToken ct) =>
+        PostAsync<MessageResult>("api/member-auth/v1/email/resend", request, forwardAuth: false, ct);
+
     public async Task<AuthResult<MemberProfile>> MeAsync(Guid memberKey, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, "api/member-auth/v1/me");

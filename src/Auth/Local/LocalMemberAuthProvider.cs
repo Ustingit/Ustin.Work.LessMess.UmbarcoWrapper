@@ -224,6 +224,38 @@ public sealed class LocalMemberAuthProvider : IMemberAuthProvider
         return AuthResult<Unit>.Success(Unit.Value);
     }
 
+    public async Task<AuthResult<Unit>> ConfirmEmailAsync(ConfirmEmailRequest request, CancellationToken ct)
+    {
+        AppUser? user = await _users.FindByEmailAsync(request.Email);
+        if (user is null)
+        {
+            return AuthResult<Unit>.Fail(StatusCodes.Status400BadRequest, "Invalid token or email");
+        }
+
+        IdentityResult result = await _users.ConfirmEmailAsync(user, request.Token);
+        return result.Succeeded
+            ? AuthResult<Unit>.Success(Unit.Value)
+            : AuthResult<Unit>.Fail(
+                StatusCodes.Status400BadRequest, "Confirmation failed",
+                string.Join("; ", result.Errors.Select(e => e.Description)));
+    }
+
+    public async Task<AuthResult<MessageResult>> ResendConfirmationAsync(ForgotPasswordRequest request, CancellationToken ct)
+    {
+        AppUser? user = await _users.FindByEmailAsync(request.Email);
+        string? devToken = null;
+
+        if (user is not null && !await _users.IsEmailConfirmedAsync(user))
+        {
+            var token = await _users.GenerateEmailConfirmationTokenAsync(user);
+            _logger.LogInformation("member-auth(local): confirm-email token for {Email}: {Token}", request.Email, token);
+            devToken = _options.ExposeTokensInResponses ? token : null;
+        }
+
+        return AuthResult<MessageResult>.Success(
+            new MessageResult("If the account exists and is unconfirmed, an email has been sent.", devToken));
+    }
+
     public async Task<AuthResult<MemberProfile>> MeAsync(Guid memberKey, CancellationToken ct)
     {
         AppUser? user = await _users.FindByIdAsync(memberKey.ToString());
