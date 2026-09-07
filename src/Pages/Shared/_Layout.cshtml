@@ -1,5 +1,6 @@
 @{
     var signedInUser = ViewData["SignedInUser"] as string;
+    var logoutPage = ViewData["LogoutPage"] as string ?? "/Logout";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -16,7 +17,7 @@
         {
             <span class="session">
                 signed in as <strong>@signedInUser</strong>
-                <form method="post" asp-page="/Logout" class="inline">
+                <form method="post" asp-page="@logoutPage" class="inline">
                     <button type="submit" class="link">Sign out</button>
                 </form>
             </span>

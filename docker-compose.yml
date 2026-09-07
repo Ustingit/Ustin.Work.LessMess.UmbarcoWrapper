@@ -14,6 +14,13 @@ services:
       Umbraco__CMS__Unattended__UnattendedUserPassword: "One-Two-Three-Four1!"
       Umbraco__CMS__Global__InstallMissingDatabase: "true"
       Umbraco__CMS__Global__Id: "00000000-0000-0000-0000-000000000000"
+      # v2 flow: let OpenIddict issue tokens over plain HTTP for the local rig
+      # (Global:UseHttps defaults to true -> "server only accepts HTTPS requests").
+      # A real deployment keeps this true and terminates TLS in front of Umbraco.
+      Umbraco__CMS__Global__UseHttps: "false"
+      # The wrapper reaches Umbraco at this host, so it must be a registered
+      # back-office (OpenIddict redirect) host.
+      Umbraco__CMS__Security__BackOfficeHost: "http://umbraco:8080"
     ports:
       - "8080:8080"
     volumes:
@@ -34,6 +41,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Umbraco__BaseUrl: "http://umbraco:8080"
+      # v2 (back-office OAuth + Management API). Same origin here; kept separate
+      # because a real Umbraco exposes this over HTTPS.
+      Umbraco__ManagementBaseUrl: "http://umbraco:8080"
       Wrapper__DataDirectory: "/data"
     ports:
       - "8090:8080"

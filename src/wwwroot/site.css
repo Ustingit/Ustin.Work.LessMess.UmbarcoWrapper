@@ -89,3 +89,15 @@ tr:last-child td { border-bottom: none; }
 tbody tr.group-head td { background: #f7f9fb; font-weight: 600; }
 .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 .count { color: var(--muted); margin: 4px 0 18px; }
+
+.variant {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    vertical-align: middle;
+}
