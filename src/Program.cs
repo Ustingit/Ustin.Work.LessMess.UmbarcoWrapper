@@ -1,5 +1,7 @@
 using System.Net;
+using Ustin.Work.LessMess.UmbarcoWrapper.Web.Auth;
 using Ustin.Work.LessMess.UmbarcoWrapper.Web.Services;
+using Ustin.Work.LessMess.UmbarcoWrapper.Web.Swagger;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -14,7 +16,12 @@ var options = new WrapperOptions
 builder.Services.AddSingleton(options);
 
 builder.Services.AddRazorPages();
+builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
+
+// Member auth API for the mobile app: Local (Postgres) or Proxy (upstream Umbraco).
+builder.AddMemberAuth();
+builder.Services.AddWrapperSwagger(builder.Configuration);
 
 builder.Services.AddSingleton<ISessionStore, FileSessionStore>();
 builder.Services.AddSingleton<IAuditLog, FileAuditLog>();
@@ -60,7 +67,16 @@ WebApplication app = builder.Build();
 
 app.UseStaticFiles();
 app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseWrapperSwagger();
+
 app.MapRazorPages();
+app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+await app.MigrateLocalAuthDbAsync();
 
 app.Run();
