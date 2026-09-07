@@ -23,7 +23,7 @@ services:
   provider-wrapper:
     build:
       context: .
-      dockerfile: src/Dockerfile
+      dockerfile: src/Ustin.Work.LessMess.UmbarcoWrapper.Api/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080

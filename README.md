@@ -14,7 +14,23 @@ flow is traceable.
 | Service    | Project                                             | Port (host) | Purpose |
 |------------|-----------------------------------------------------|-------------|---------|
 | `umbraco`  | `cms/Ustin.Work.LessMess.UmbarcoWrapper.Cms.csproj` | `8080`      | Umbraco 17 CMS (SQLite, unattended install). Backoffice at `/umbraco`. Exposes a small custom API under `/api/wrapper/*`. Seeds ~45 grouped dictionary items in two languages on first boot. |
-| `wrapper`  | `src/Ustin.Work.LessMess.UmbarcoWrapper.Web.csproj` | `8090`      | ASP.NET Core Razor Pages app. 3 screens: **login**, **register**, **translations**. Proxies auth to Umbraco, forwards the Umbraco member cookie on subsequent calls. |
+| `wrapper`  | `src/Ustin.Work.LessMess.UmbarcoWrapper.Api`        | `8090`      | ASP.NET Core host: Razor Pages screens (v1/v2) **and** the member-auth JSON API + Swagger. Proxies auth to Umbraco / serves it from a local store. |
+
+### Solution layout (`src/`)
+
+```
+src/
+  Directory.Build.props / Directory.Packages.props   shared TFM + central package versions
+  Ustin.Work.LessMess.UmbarcoWrapper.Core            contracts, options, IMemberAuthProvider, event types — no deps
+  Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure  EF/Npgsql/Identity, JwtTokenService, Local+Proxy providers,
+                                                     AddWrapperMemberAuth() (host-agnostic DI extension)
+  Ustin.Work.LessMess.UmbarcoWrapper.Api             controllers, Razor Pages, Swagger, Program.cs
+  Ustin.Work.LessMess.UmbarcoWrapper.Worker          placeholder for background jobs / event handlers
+```
+
+`Api` → `Infrastructure` → `Core`. `Worker` will reference `Infrastructure` and call the
+same `AddWrapperMemberAuth()` when it gets real work. Migrations live in
+`Infrastructure/Auth/Local/Migrations`; only the API applies them on boot.
 
 ### Umbraco custom API (`cms/Controllers`)
 
@@ -28,7 +44,7 @@ Plain `[ApiController]` endpoints that use Umbraco's own services:
 | `GET  /api/wrapper/auth/me` | `IMemberManager.GetCurrentMemberAsync` | 200 / 401 |
 | `GET  /api/wrapper/translations` | `IDictionaryItemService` + `ILanguageService` | **requires** an authenticated member; returns the dictionary tree flattened with a `group` path |
 
-### Wrapper persistent layer (`src/Services`)
+### Wrapper persistent layer (`src/…Api/Services`)
 
 No DB. Two files under a mounted volume (`/data`):
 
@@ -158,7 +174,7 @@ wrapper can validate the tokens it forwards). Points at the
 
 ## Tests
 
-* `tests/Ustin.Work.LessMess.UmbarcoWrapper.Web.Tests` — xUnit unit tests for the
+* `tests/Ustin.Work.LessMess.UmbarcoWrapper.Tests` — xUnit unit tests for the
   file session store, the audit log and the JWT token service (no Docker
   needed): `dotnet test`.
 * `tests/integration.sh` — drives the full v1/v2 stack over HTTP once

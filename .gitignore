@@ -18,3 +18,7 @@ data/
 
 # OS
 .DS_Store
+
+# Umbraco build-generated JSON schema
+cms/appsettings-schema*.json
+cms/umbraco-package-schema.json

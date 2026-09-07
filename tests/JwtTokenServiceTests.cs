@@ -1,10 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Ustin.Work.LessMess.UmbarcoWrapper.Web.Auth.Jwt;
+using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auth.Jwt;
+using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Jwt;
 using Xunit;
 
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Web.Tests;
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Tests;
 
 public sealed class JwtTokenServiceTests
 {
