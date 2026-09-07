@@ -120,9 +120,45 @@ issues over plain HTTP. A real deployment leaves that at its default (`true`) an
 fronts Umbraco with TLS; the wrapper can also trust a self-signed cert on a
 staging box via `Umbraco:AllowInvalidCertificate=true`.
 
+## Member auth API (for a mobile app) — `IMemberAuthProvider`
+
+A JSON API at **`/api/member-auth/v1`** (register, login, `token/refresh`,
+logout, `password/forgot`, `password/reset`, `password/change`, `me`) with two
+interchangeable implementations behind `MemberAuth:Mode`:
+
+| Mode | Backing | Use |
+|---|---|---|
+| **`Local`** (default) | self-contained identity store on **Postgres** (ASP.NET Core Identity + one `RefreshTokens` table) | testing / offline; no Umbraco needed |
+| **`Proxy`** | relays every call to a real Umbraco `/api/member-auth/v1/*` | real forwarding; upstream mints the tokens |
+
+Same request/response contract either way. Access tokens are HS256 JWT, **3 h**
+lifetime (`Jwt:AccessTokenLifetime`), with rotating refresh tokens + reuse
+detection. `Local` mode is refused in `Production` unless
+`MemberAuth:AllowLocalInProduction=true`.
+
+### One command → Swagger (Local mode)
+
+```bash
+docker compose -f docker-compose.local.yml up --build
+```
+
+* Swagger UI: <http://localhost:8090/swagger> — **"Ustin Provider Wrapper"**, version **1.1.0**
+* Postgres: `localhost:5432` (`wrapper` / `wrapper` / db `providerwrapper`)
+* EF migrations are applied on startup (with a short retry while Postgres comes up).
+* `MemberAuth:ExposeTokensInResponses=true` here, so `password/forgot` returns the
+  reset token in the response body (no SMTP locally).
+
+### Proxy mode
+
+Set `MemberAuth__Mode=Proxy`, `MemberAuth__UpstreamBaseUrl=<umbraco url>` and
+`MemberAuth__Proxy__SharedSigningKey=<upstream member-JWT signing key>` (so the
+wrapper can validate the tokens it forwards). Points at the
+`Umbraco.Cms.MemberJwtAuth` controller.
+
 ## Tests
 
 * `tests/Ustin.Work.LessMess.UmbarcoWrapper.Web.Tests` — xUnit unit tests for the
-  file session store and the audit log (no Docker needed): `dotnet test`.
-* `tests/integration.sh` — drives the full stack over HTTP once `docker compose up`
-  is healthy and asserts the audit trail contains the expected events.
+  file session store, the audit log and the JWT token service (no Docker
+  needed): `dotnet test`.
+* `tests/integration.sh` — drives the full v1/v2 stack over HTTP once
+  `docker compose up` is healthy and asserts the audit trail.
