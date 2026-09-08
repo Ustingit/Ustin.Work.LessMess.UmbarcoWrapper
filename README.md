@@ -250,10 +250,52 @@ rely on an edge WAF for a shared view. Account lockout (Identity, 5 failed →
 locked) runs alongside it — a rapid wrong-password loop hits `401` × 5, then
 `403` locked, then `429`.
 
+## Logging & observability
+
+Two separate streams — don't conflate them:
+
+| | **audit trail** | **diagnostic logs** |
+|---|---|---|
+| what | `member.login`, `logout`, … — a business record | `ILogger`: info / warnings / errors / one line per request |
+| store | Postgres **DB A** (`WrapperDb.AuditLog`), kept long, queried + joined | a log backend (Kibana / Loki / Seq / Sentry), kept days–weeks |
+| owner | the product | ops |
+
+### Diagnostic logs — provider-agnostic (`Serilog` section)
+
+Serilog is the logging provider, configured **entirely from `appsettings.json`**
+(`ReadFrom.Configuration`). Every event is structured and enriched with
+`Application`, `MachineName`, `EnvironmentName`, `TraceId` / `SpanId`, and — on
+the per-request summary line — `ClientId`. `UseSerilogRequestLogging` collapses
+each request to one line. Development logs plain text; **Production emits compact
+JSON to stdout** (`appsettings.Production.json`) for a shipper (Fluent Bit /
+Vector / Filebeat) to forward.
+
+Adding a backend later = a NuGet package + a `Serilog:WriteTo` block, **no code**:
+
+```jsonc
+// Seq
+{ "Name": "Seq", "Args": { "serverUrl": "http://seq:5341" } }
+// Elasticsearch / Kibana  (Elastic.Serilog.Sinks)
+{ "Name": "Elasticsearch", "Args": { "nodes": [ "http://es:9200" ], "dataStream": "logs-wrapper" } }
+// Grafana Loki  (Serilog.Sinks.Grafana.Loki)
+{ "Name": "GrafanaLoki", "Args": { "uri": "http://loki:3100" } }
+```
+
+### Errors → Sentry (`Sentry` section)
+
+`Sentry.AspNetCore` is wired (`builder.WebHost.UseSentry()`): automatic
+unhandled-exception capture, HTTP breadcrumbs, release/environment tagging.
+**Inert until `Sentry:Dsn` is set** — an empty DSN disables the SDK, so it ships
+enabled and is switched on per environment. `LogError(ex, …)` also reaches it.
+
+`OpenTelemetry` (OTLP → any collector) is a future option — add
+`Serilog.Sinks.OpenTelemetry` as another `WriteTo` entry, or run the OTel SDK
+alongside.
+
 ## Tests
 
 * `tests/Ustin.Work.LessMess.UmbarcoWrapper.Tests` — xUnit unit tests for the
-  file session store, the audit log and the JWT token service (no Docker
-  needed): `dotnet test`.
+  in-memory session store, the Postgres audit log (EF InMemory), the JWT token
+  service and the client-gate registry (no Docker needed): `dotnet test`.
 * `tests/integration.sh` — drives the full v1/v2 stack over HTTP once
   `docker compose up` is healthy and asserts the audit trail.
