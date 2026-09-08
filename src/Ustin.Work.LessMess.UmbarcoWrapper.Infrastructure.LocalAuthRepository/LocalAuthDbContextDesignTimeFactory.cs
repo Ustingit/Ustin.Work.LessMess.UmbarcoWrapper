@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local;
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository;
 
 /// <summary>
 /// Lets <c>dotnet ef</c> build the context for migrations without running the app

@@ -1,4 +1,5 @@
-using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 
 namespace Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;
 
@@ -23,89 +24,64 @@ public interface ISessionStore
 }
 
 /// <summary>
-///     File-backed session map (<c>{DataDirectory}/sessions.json</c>). No database:
-///     the wrapper keeps only the mapping wrapper-session-id → raw Umbraco Set-Cookie
-///     values, so it can replay them as the logged-in member on later calls.
+///     In-memory session map: wrapper-session-id → raw Umbraco Set-Cookie values,
+///     so the wrapper can replay them as the logged-in member on later calls.
+///     Backed by a dedicated <see cref="MemoryCache"/> so entries expire on their
+///     own (idle + absolute cap) and total size is bounded. State lives only while
+///     the process runs; a restart signs everyone out — the credential proof is
+///     the upstream cookie, not our copy. Swap to <c>HybridCache</c> + Redis to
+///     share sessions across instances without touching this interface.
 /// </summary>
-public sealed class FileSessionStore : ISessionStore
+public sealed class InMemorySessionStore : ISessionStore, IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly MemoryCache _cache;
+    private readonly SessionCacheOptions _options;
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly string _path;
-
-    public FileSessionStore(WrapperOptions options)
+    public InMemorySessionStore(IOptions<SessionCacheOptions> options)
     {
-        Directory.CreateDirectory(options.DataDirectory);
-        _path = Path.Combine(options.DataDirectory, "sessions.json");
+        _options = options.Value;
+        _cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = _options.MaxEntries });
     }
 
-    public async Task<string> CreateAsync(string username, string email, string cookies, string? ip)
+    public Task<string> CreateAsync(string username, string email, string cookies, string? ip)
     {
         var sessionId = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
-
-        await MutateAsync(map => map[sessionId] = new SessionRecord(username, email, cookies, ip, now, now));
-        return sessionId;
+        Set(sessionId, new SessionRecord(username, email, cookies, ip, now, now));
+        return Task.FromResult(sessionId);
     }
 
-    public async Task<SessionRecord?> GetAsync(string sessionId)
+    public Task<SessionRecord?> GetAsync(string sessionId) =>
+        Task.FromResult(_cache.TryGetValue(sessionId, out SessionRecord? record) ? record : null);
+
+    public Task TouchAsync(string sessionId, string? cookies = null)
     {
-        await _gate.WaitAsync();
-        try
+        if (_cache.TryGetValue(sessionId, out SessionRecord? existing) && existing is not null)
         {
-            return Load().GetValueOrDefault(sessionId);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public Task TouchAsync(string sessionId, string? cookies = null) =>
-        MutateAsync(map =>
-        {
-            if (map.TryGetValue(sessionId, out SessionRecord? existing))
+            Set(sessionId, existing with
             {
-                map[sessionId] = existing with
-                {
-                    LastSeenUtc = DateTimeOffset.UtcNow,
-                    Cookies = string.IsNullOrEmpty(cookies) ? existing.Cookies : cookies,
-                };
-            }
+                LastSeenUtc = DateTimeOffset.UtcNow,
+                Cookies = string.IsNullOrEmpty(cookies) ? existing.Cookies : cookies,
+            });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveAsync(string sessionId)
+    {
+        _cache.Remove(sessionId);
+        return Task.CompletedTask;
+    }
+
+    public void Dispose() => _cache.Dispose();
+
+    private void Set(string sessionId, SessionRecord record) =>
+        _cache.Set(sessionId, record, new MemoryCacheEntryOptions
+        {
+            Size = 1,
+            SlidingExpiration = _options.IdleTimeout,
+            // Absolute cap is computed from CreatedUtc so a Touch cannot push it out.
+            AbsoluteExpiration = record.CreatedUtc + _options.MaxLifetime,
         });
-
-    public Task RemoveAsync(string sessionId) => MutateAsync(map => map.Remove(sessionId));
-
-    private async Task MutateAsync(Action<Dictionary<string, SessionRecord>> mutation)
-    {
-        await _gate.WaitAsync();
-        try
-        {
-            Dictionary<string, SessionRecord> map = Load();
-            mutation(map);
-            await File.WriteAllTextAsync(_path, JsonSerializer.Serialize(map, JsonOptions));
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    private Dictionary<string, SessionRecord> Load()
-    {
-        if (!File.Exists(_path))
-        {
-            return new Dictionary<string, SessionRecord>();
-        }
-
-        var json = File.ReadAllText(_path);
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return new Dictionary<string, SessionRecord>();
-        }
-
-        return JsonSerializer.Deserialize<Dictionary<string, SessionRecord>>(json)
-               ?? new Dictionary<string, SessionRecord>();
-    }
 }

@@ -1,3 +1,4 @@
+using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auditing;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;

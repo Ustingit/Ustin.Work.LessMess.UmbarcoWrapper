@@ -4,7 +4,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migrations
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

@@ -1,4 +1,4 @@
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local;
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository;
 
 /// <summary>
 /// A rotated refresh token. Only the SHA-256 hash of the raw value is stored.

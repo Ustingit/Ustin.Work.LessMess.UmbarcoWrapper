@@ -1,6 +1,4 @@
 using System.Text;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,9 +7,11 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auth;
 using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auth.Jwt;
+using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth;
 using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Jwt;
-using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local;
 using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Proxy;
+using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository;
+using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Repository;
 
 namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.DependencyInjection;
 
@@ -19,6 +19,9 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.DependencyInjection;
 /// Registers the member-auth stack. Host-agnostic: the same call works from the
 /// API's <see cref="WebApplicationBuilder"/> and from the Worker's generic host
 /// builder (both are <see cref="IHostApplicationBuilder"/>).
+///
+/// Database A (<see cref="WrapperDbContext"/>) is registered unconditionally;
+/// database B (<see cref="LocalAuthDbContext"/>) only when <c>MemberAuth:Mode=Local</c>.
 /// </summary>
 public static class MemberAuthInfrastructureExtensions
 {
@@ -29,6 +32,9 @@ public static class MemberAuthInfrastructureExtensions
     {
         IServiceCollection services = builder.Services;
         IConfiguration config = builder.Configuration;
+
+        // Database A — durable, every mode.
+        builder.AddWrapperRepository();
 
         services.AddOptions<JwtOptions>().Bind(config.GetSection(JwtOptions.SectionName));
         services.AddOptions<MemberAuthOptions>().Bind(config.GetSection(MemberAuthOptions.SectionName));
@@ -79,26 +85,8 @@ public static class MemberAuthInfrastructureExtensions
 
         if (memberAuth.Mode == AuthMode.Local)
         {
-            var cs = config.GetConnectionString("LocalAuthDb")
-                ?? throw new InvalidOperationException(
-                    "ConnectionStrings:LocalAuthDb is required when MemberAuth:Mode=Local.");
-
-            services.AddDbContext<LocalAuthDbContext>(o => o.UseNpgsql(cs));
-
-            services.AddIdentityCore<AppUser>(o =>
-                {
-                    o.Password.RequiredLength = 10;
-                    o.Password.RequireNonAlphanumeric = false;
-                    o.Password.RequireDigit = false;
-                    o.Password.RequireUppercase = false;
-                    o.Password.RequireLowercase = false;
-                    o.User.RequireUniqueEmail = true;
-                    o.Lockout.MaxFailedAccessAttempts = 5;
-                })
-                .AddRoles<IdentityRole<Guid>>()
-                .AddEntityFrameworkStores<LocalAuthDbContext>()
-                .AddDefaultTokenProviders();
-
+            // Database B — only in Local mode.
+            builder.AddLocalAuthRepository();
             services.AddScoped<IMemberAuthProvider, LocalMemberAuthProvider>();
         }
         else
@@ -113,31 +101,35 @@ public static class MemberAuthInfrastructureExtensions
         return builder;
     }
 
-    /// <summary>Applies EF migrations for the local store (Local mode only), with a short retry.</summary>
+    /// <summary>
+    /// Migrates database A always; database B only in Local mode. Short retry loop
+    /// because compose brings Postgres up in parallel.
+    /// </summary>
     public static async Task MigrateWrapperMemberAuthDbAsync(this IHost host)
     {
-        if (host.Services.GetRequiredService<IOptions<MemberAuthOptions>>().Value.Mode != AuthMode.Local)
+        ILogger logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MemberAuth");
+        var memberAuth = host.Services.GetRequiredService<IOptions<MemberAuthOptions>>().Value;
+
+        await host.MigrateWrapperRepositoryAsync();
+
+        if (memberAuth.Mode == AuthMode.Local)
         {
-            return;
+            await host.MigrateLocalAuthRepositoryAsync();
+            logger.LogInformation(
+                "MemberAuth mode=Local; databases: WrapperDb (durable, A) + LocalAuthDb (identity store, B)");
         }
-
-        ILogger logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MemberAuthMigrator");
-
-        await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
-        LocalAuthDbContext db = scope.ServiceProvider.GetRequiredService<LocalAuthDbContext>();
-
-        for (var attempt = 1; ; attempt++)
+        else
         {
-            try
+            logger.LogInformation(
+                "MemberAuth mode=Proxy; databases: WrapperDb (durable, A) only. "
+                + "LocalAuthDb is not registered, migrated or read in this mode - "
+                + "drop the localauth database if this instance was previously in Local mode.");
+
+            if (string.IsNullOrWhiteSpace(memberAuth.Proxy.SharedSigningKey))
             {
-                await db.Database.MigrateAsync();
-                logger.LogInformation("LocalAuthDb migrations applied");
-                return;
-            }
-            catch (Exception ex) when (attempt < 10)
-            {
-                logger.LogWarning(ex, "LocalAuthDb migrate attempt {Attempt} failed; retrying in 3s", attempt);
-                await Task.Delay(TimeSpan.FromSeconds(3));
+                logger.LogWarning(
+                    "MemberAuth:Proxy:SharedSigningKey is empty - relayed tokens are validated with the "
+                    + "well-known development key. Set it to the upstream member-JWT signing key.");
             }
         }
     }

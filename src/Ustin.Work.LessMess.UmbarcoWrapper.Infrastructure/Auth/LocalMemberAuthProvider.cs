@@ -8,8 +8,9 @@ using Microsoft.Extensions.Options;
 using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auth;
 using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auth.Jwt;
 using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Jwt;
+using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository;
 
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local;
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth;
 
 /// <summary>
 /// Test / offline mode: a self-contained identity store on Postgres. Password

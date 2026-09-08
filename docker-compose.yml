@@ -1,4 +1,22 @@
+# Full stack: Umbraco + the wrapper in PROXY mode.
+# The wrapper's member-auth API forwards to Umbraco; only database A (the durable
+# audit store) is provisioned here - database B is never registered or migrated
+# in Proxy mode.
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: wrapper
+      POSTGRES_USER: wrapper
+      POSTGRES_PASSWORD: wrapper
+    volumes:
+      - wrapper-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wrapper"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   umbraco:
     build:
       context: .
@@ -41,18 +59,19 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Umbraco__BaseUrl: "http://umbraco:8080"
-      # v2 (back-office OAuth + Management API). Same origin here; kept separate
-      # because a real Umbraco exposes this over HTTPS.
       Umbraco__ManagementBaseUrl: "http://umbraco:8080"
-      Wrapper__DataDirectory: "/data"
+      MemberAuth__Mode: "Proxy"
+      MemberAuth__UpstreamBaseUrl: "http://umbraco:8080"
+      # Database A - durable, exists in every mode.
+      ConnectionStrings__WrapperDb: "Host=db;Port=5432;Database=wrapper;Username=wrapper;Password=wrapper"
     ports:
       - "8090:8080"
-    volumes:
-      - wrapper-data:/data
     depends_on:
+      db:
+        condition: service_healthy
       umbraco:
         condition: service_healthy
 
 volumes:
   umbraco-data:
-  wrapper-data:
+  wrapper-db-data:

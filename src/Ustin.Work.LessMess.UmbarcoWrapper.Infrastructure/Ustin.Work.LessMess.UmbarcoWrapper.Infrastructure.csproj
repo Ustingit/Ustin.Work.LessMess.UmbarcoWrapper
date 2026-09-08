@@ -12,16 +12,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Ustin.Work.LessMess.UmbarcoWrapper.Core\Ustin.Work.LessMess.UmbarcoWrapper.Core.csproj" />
+    <ProjectReference Include="..\Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Repository\Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Repository.csproj" />
+    <ProjectReference Include="..\Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository\Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.csproj" />
   </ItemGroup>
 
 </Project>

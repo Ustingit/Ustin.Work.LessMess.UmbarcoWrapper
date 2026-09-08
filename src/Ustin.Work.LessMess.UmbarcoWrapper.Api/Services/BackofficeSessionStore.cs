@@ -1,4 +1,5 @@
-using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 
 namespace Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;
 
@@ -23,87 +24,72 @@ public interface IBackofficeSessionStore
 }
 
 /// <summary>
-///     File-backed (<c>backoffice-sessions.json</c>). Kept separate from the v1
-///     <see cref="FileSessionStore"/> so the two auth models stay fully independent
-///     and can be exercised side by side.
+///     In-memory store for the v2 back-office BFF cookie set, on its own
+///     <see cref="MemoryCache"/> — kept separate from the v1
+///     <see cref="InMemorySessionStore"/> so the two auth models stay fully
+///     independent. The absolute expiry is clamped to the BFF cookie set's own
+///     expiry (a session past that is useless); <see cref="RefreshAsync"/> extends
+///     it when the cookie set is renewed.
 /// </summary>
-public sealed class BackofficeSessionStore : IBackofficeSessionStore
+public sealed class InMemoryBackofficeSessionStore : IBackofficeSessionStore, IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly MemoryCache _cache;
+    private readonly SessionCacheOptions _options;
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly string _path;
-
-    public BackofficeSessionStore(WrapperOptions options)
+    public InMemoryBackofficeSessionStore(IOptions<SessionCacheOptions> options)
     {
-        Directory.CreateDirectory(options.DataDirectory);
-        _path = Path.Combine(options.DataDirectory, "backoffice-sessions.json");
+        _options = options.Value;
+        _cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = _options.MaxEntries });
     }
 
-    public async Task<string> CreateAsync(string username, BffSession session, string? ip)
+    public Task<string> CreateAsync(string username, BffSession session, string? ip)
     {
         var sessionId = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
-        await MutateAsync(map => map[sessionId] = new BackofficeSessionRecord(
+        Set(sessionId, new BackofficeSessionRecord(
             username, session.Cookies, session.ExpiresAtUtc, ip, now, now));
-        return sessionId;
+        return Task.FromResult(sessionId);
     }
 
-    public async Task<BackofficeSessionRecord?> GetAsync(string sessionId)
+    public Task<BackofficeSessionRecord?> GetAsync(string sessionId) =>
+        Task.FromResult(_cache.TryGetValue(sessionId, out BackofficeSessionRecord? record) ? record : null);
+
+    public Task RefreshAsync(string sessionId, BffSession session)
     {
-        await _gate.WaitAsync();
-        try
+        if (_cache.TryGetValue(sessionId, out BackofficeSessionRecord? existing) && existing is not null)
         {
-            return Load().GetValueOrDefault(sessionId);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public Task RefreshAsync(string sessionId, BffSession session) =>
-        MutateAsync(map =>
-        {
-            if (map.TryGetValue(sessionId, out BackofficeSessionRecord? existing))
+            Set(sessionId, existing with
             {
-                map[sessionId] = existing with
-                {
-                    Cookies = session.Cookies,
-                    ExpiresAtUtc = session.ExpiresAtUtc,
-                    LastSeenUtc = DateTimeOffset.UtcNow,
-                };
-            }
-        });
-
-    public Task RemoveAsync(string sessionId) => MutateAsync(map => map.Remove(sessionId));
-
-    private async Task MutateAsync(Action<Dictionary<string, BackofficeSessionRecord>> mutation)
-    {
-        await _gate.WaitAsync();
-        try
-        {
-            Dictionary<string, BackofficeSessionRecord> map = Load();
-            mutation(map);
-            await File.WriteAllTextAsync(_path, JsonSerializer.Serialize(map, JsonOptions));
+                Cookies = session.Cookies,
+                ExpiresAtUtc = session.ExpiresAtUtc,
+                LastSeenUtc = DateTimeOffset.UtcNow,
+            });
         }
-        finally
-        {
-            _gate.Release();
-        }
+
+        return Task.CompletedTask;
     }
 
-    private Dictionary<string, BackofficeSessionRecord> Load()
+    public Task RemoveAsync(string sessionId)
     {
-        if (!File.Exists(_path))
+        _cache.Remove(sessionId);
+        return Task.CompletedTask;
+    }
+
+    public void Dispose() => _cache.Dispose();
+
+    private void Set(string sessionId, BackofficeSessionRecord record)
+    {
+        DateTimeOffset absolute = record.CreatedUtc + _options.MaxLifetime;
+        if (record.ExpiresAtUtc < absolute)
         {
-            return new Dictionary<string, BackofficeSessionRecord>();
+            absolute = record.ExpiresAtUtc;
         }
 
-        var json = File.ReadAllText(_path);
-        return string.IsNullOrWhiteSpace(json)
-            ? new Dictionary<string, BackofficeSessionRecord>()
-            : JsonSerializer.Deserialize<Dictionary<string, BackofficeSessionRecord>>(json)
-              ?? new Dictionary<string, BackofficeSessionRecord>();
+        _cache.Set(sessionId, record, new MemoryCacheEntryOptions
+        {
+            Size = 1,
+            SlidingExpiration = _options.IdleTimeout,
+            AbsoluteExpiration = absolute,
+        });
     }
 }

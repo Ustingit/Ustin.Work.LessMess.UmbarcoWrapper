@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository</RootNamespace>
+    <AssemblyName>Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    Database B — the Local-mode identity store (ASP.NET Core Identity + refresh
+    tokens on Postgres). Created / migrated ONLY when MemberAuth:Mode=Local.
+    Nothing here is referenced or migrated in Proxy mode; the project can be
+    deleted wholesale when Local mode is retired.
+    Own DbContext, own migrations history, own connection string (ConnectionStrings:LocalAuthDb).
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ustin.Work.LessMess.UmbarcoWrapper.Core\Ustin.Work.LessMess.UmbarcoWrapper.Core.csproj" />
+  </ItemGroup>
+
+</Project>

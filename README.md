@@ -20,17 +20,34 @@ flow is traceable.
 
 ```
 src/
-  Directory.Build.props / Directory.Packages.props   shared TFM + central package versions
-  Ustin.Work.LessMess.UmbarcoWrapper.Core            contracts, options, IMemberAuthProvider, event types — no deps
-  Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure  EF/Npgsql/Identity, JwtTokenService, Local+Proxy providers,
-                                                     AddWrapperMemberAuth() (host-agnostic DI extension)
-  Ustin.Work.LessMess.UmbarcoWrapper.Api             controllers, Razor Pages, Swagger, Program.cs
-  Ustin.Work.LessMess.UmbarcoWrapper.Worker          placeholder for background jobs / event handlers
+  Directory.Build.props / Directory.Packages.props     shared TFM + central package versions
+  …Core                                                contracts, options, IMemberAuthProvider, IAuditLog — no deps
+  …Infrastructure                                       JwtTokenService, Local + Proxy providers,
+                                                        AddWrapperMemberAuth() (host-agnostic DI extension)
+  …Infrastructure.Repository            DB A            durable store: WrapperDbContext + AuditLog (+ later
+                                                        devices / licences / T&C). Registered + migrated in EVERY mode.
+  …Infrastructure.LocalAuthRepository   DB B            Local-mode identity store: LocalAuthDbContext + Identity +
+                                                        RefreshTokens. Registered + migrated ONLY when Mode=Local.
+  …Api                                                  controllers, Razor Pages, Swagger, Program.cs
+  …Worker                                               placeholder for background jobs / event handlers
 ```
 
-`Api` → `Infrastructure` → `Core`. `Worker` will reference `Infrastructure` and call the
-same `AddWrapperMemberAuth()` when it gets real work. Migrations live in
-`Infrastructure/Auth/Local/Migrations`; only the API applies them on boot.
+`Api` → `Infrastructure` → { `Repository`, `LocalAuthRepository` } → `Core`.
+Two Postgres databases (own DbContext, own `__EFMigrationsHistory`, own connection
+string — `WrapperDb` / `LocalAuthDb`). Session state (the v1/v2 Umbraco cookie
+maps) is not persisted — see below. The `Worker` will reference
+`…Infrastructure.Repository` only (for the outbox), never DB B.
+
+### Switching a deployment from Local to Proxy
+
+1. Redeploy with `MemberAuth__Mode=Proxy`, `MemberAuth__UpstreamBaseUrl=<umbraco>`,
+   `MemberAuth__Proxy__SharedSigningKey=<upstream member-JWT key>`.
+2. DB A (`WrapperDb`) carries over unchanged — the audit history is kept.
+3. DB B is now inert: `…LocalAuthRepository` is not registered, not migrated, not
+   read. The users that lived there are unreachable (the proxy forwards to
+   Umbraco; their old tokens no longer validate against the new signing key).
+4. Optionally `DROP DATABASE localauth;` — leaving it is harmless. Startup logs
+   `MemberAuth mode=Proxy; databases: WrapperDb (durable, A) only.`
 
 ### Umbraco custom API (`cms/Controllers`)
 
@@ -44,12 +61,23 @@ Plain `[ApiController]` endpoints that use Umbraco's own services:
 | `GET  /api/wrapper/auth/me` | `IMemberManager.GetCurrentMemberAsync` | 200 / 401 |
 | `GET  /api/wrapper/translations` | `IDictionaryItemService` + `ILanguageService` | **requires** an authenticated member; returns the dictionary tree flattened with a `group` path |
 
-### Wrapper persistent layer (`src/…Api/Services`)
+### Wrapper session state (`src/…Api/Services`)
 
-No DB. Two files under a mounted volume (`/data`):
+`InMemorySessionStore` / `InMemoryBackofficeSessionStore` — a *wrapper session id*
+→ *raw Umbraco `Set-Cookie` values* map, so the wrapper can replay them as the
+logged-in member on later requests. Each store has its own bounded `MemoryCache`:
+a sliding `Sessions:IdleTimeout` (30 min), an absolute `Sessions:MaxLifetime`
+(8 h) computed from creation so a touch can't extend it, `Sessions:MaxEntries`
+as a size cap, and — for v2 — the absolute expiry clamped to the BFF cookie
+set's own expiry. It lives only while the process runs; a restart signs everyone
+out (the credential proof is the upstream cookie, not our state). No file, no
+volume. To share sessions across instances, swap the `MemoryCache` for
+`HybridCache` + a Redis `IDistributedCache` — the `ISessionStore` /
+`IBackofficeSessionStore` interfaces don't change.
 
-* `sessions.json` — map of *wrapper session id* → *raw Umbraco `Set-Cookie` values*. Lets the wrapper act as the logged-in member on later requests.
-* `audit.log` — append-only JSON lines. One line per event, also mirrored to `ILogger` (so `docker logs wrapper` shows it):
+The **audit trail** is a separate, durable concern — see the persistence
+projects below. Entries are also mirrored to `ILogger` (so `docker logs` shows
+them):
 
   ```json
   {"ts":"2026-09-02T18:20:01.512Z","event":"login","username":"alice","ip":"172.19.0.1","userAgent":"curl/8.4","outcome":"success","detail":"umbraco member cookie stored"}
@@ -228,10 +256,52 @@ rely on an edge WAF for a shared view. Account lockout (Identity, 5 failed →
 locked) runs alongside it — a rapid wrong-password loop hits `401` × 5, then
 `403` locked, then `429`.
 
+## Logging & observability
+
+Two separate streams — don't conflate them:
+
+| | **audit trail** | **diagnostic logs** |
+|---|---|---|
+| what | `member.login`, `logout`, … — a business record | `ILogger`: info / warnings / errors / one line per request |
+| store | Postgres **DB A** (`WrapperDb.AuditLog`), kept long, queried + joined | a log backend (Kibana / Loki / Seq / Sentry), kept days–weeks |
+| owner | the product | ops |
+
+### Diagnostic logs — provider-agnostic (`Serilog` section)
+
+Serilog is the logging provider, configured **entirely from `appsettings.json`**
+(`ReadFrom.Configuration`). Every event is structured and enriched with
+`Application`, `MachineName`, `EnvironmentName`, `TraceId` / `SpanId`, and — on
+the per-request summary line — `ClientId`. `UseSerilogRequestLogging` collapses
+each request to one line. Development logs plain text; **Production emits compact
+JSON to stdout** (`appsettings.Production.json`) for a shipper (Fluent Bit /
+Vector / Filebeat) to forward.
+
+Adding a backend later = a NuGet package + a `Serilog:WriteTo` block, **no code**:
+
+```jsonc
+// Seq
+{ "Name": "Seq", "Args": { "serverUrl": "http://seq:5341" } }
+// Elasticsearch / Kibana  (Elastic.Serilog.Sinks)
+{ "Name": "Elasticsearch", "Args": { "nodes": [ "http://es:9200" ], "dataStream": "logs-wrapper" } }
+// Grafana Loki  (Serilog.Sinks.Grafana.Loki)
+{ "Name": "GrafanaLoki", "Args": { "uri": "http://loki:3100" } }
+```
+
+### Errors → Sentry (`Sentry` section)
+
+`Sentry.AspNetCore` is wired (`builder.WebHost.UseSentry()`): automatic
+unhandled-exception capture, HTTP breadcrumbs, release/environment tagging.
+**Inert until `Sentry:Dsn` is set** — an empty DSN disables the SDK, so it ships
+enabled and is switched on per environment. `LogError(ex, …)` also reaches it.
+
+`OpenTelemetry` (OTLP → any collector) is a future option — add
+`Serilog.Sinks.OpenTelemetry` as another `WriteTo` entry, or run the OTel SDK
+alongside.
+
 ## Tests
 
 * `tests/Ustin.Work.LessMess.UmbarcoWrapper.Tests` — xUnit unit tests for the
-  file session store, the audit log and the JWT token service (no Docker
-  needed): `dotnet test`.
+  in-memory session store, the Postgres audit log (EF InMemory), the JWT token
+  service and the client-gate registry (no Docker needed): `dotnet test`.
 * `tests/integration.sh` — drives the full v1/v2 stack over HTTP once
   `docker compose up` is healthy and asserts the audit trail.

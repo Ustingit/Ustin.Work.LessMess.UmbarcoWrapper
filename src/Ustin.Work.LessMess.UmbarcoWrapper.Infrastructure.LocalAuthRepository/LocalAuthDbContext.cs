@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local;
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository;
 
 /// <summary>
 /// Local-mode identity store: ASP.NET Core Identity tables plus one

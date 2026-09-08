@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Ustin.Work.LessMess.UmbarcoWrapper.Api.Security;
 using Microsoft.Extensions.Options;
 
+using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auditing;
 using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auth;
 
 namespace Ustin.Work.LessMess.UmbarcoWrapper.Api.Auth;
@@ -21,11 +22,13 @@ public sealed class MemberAuthController : ControllerBase
 {
     private readonly IMemberAuthProvider _provider;
     private readonly MemberAuthOptions _options;
+    private readonly IAuditLog _audit;
 
-    public MemberAuthController(IMemberAuthProvider provider, IOptions<MemberAuthOptions> options)
+    public MemberAuthController(IMemberAuthProvider provider, IOptions<MemberAuthOptions> options, IAuditLog audit)
     {
         _provider = provider;
         _options = options.Value;
+        _audit = audit;
     }
 
     private AuthCallContext Ctx => new(
@@ -39,8 +42,20 @@ public sealed class MemberAuthController : ControllerBase
 
     [HttpPost("login")]
     [EnableRateLimiting(RateLimitPolicies.Login)]
-    public async Task<IActionResult> Login(LoginRequest request, CancellationToken ct) =>
-        Map(await _provider.LoginAsync(request, Ctx, ct));
+    public async Task<IActionResult> Login(LoginRequest request, CancellationToken ct)
+    {
+        AuthResult<TokenResponse> result = await _provider.LoginAsync(request, Ctx, ct);
+
+        await _audit.WriteAsync(new AuditEntry(
+            result.Ok ? "member.login" : "member.login.failed",
+            request.UsernameOrEmail,
+            Ctx.Ip,
+            Ctx.UserAgent,
+            result.Ok ? "success" : "failure",
+            result.Ok ? _options.Mode.ToString() : result.Title));
+
+        return Map(result);
+    }
 
     [HttpPost("token/refresh")]
     [EnableRateLimiting(RateLimitPolicies.Refresh)]

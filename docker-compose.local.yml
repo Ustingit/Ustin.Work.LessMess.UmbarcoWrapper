@@ -1,13 +1,17 @@
-# Test / offline mode: the wrapper's member-auth API backed by a local Postgres,
-# no Umbraco involved.
+# Local / test mode: the member-auth API backed by Postgres, no Umbraco.
 #
 #   docker compose -f docker-compose.local.yml up --build
 #   ->  Swagger UI at http://localhost:8090/swagger   (title "Ustin Provider Wrapper", v1.1.0)
+#
+# Two databases on one server:
+#   wrapper   = database A (durable: audit log, later devices/licences/T&C) - always
+#   localauth = database B (Local-mode identity store)                      - Local only
+# Database B is auto-created by EF Migrate() on first boot.
 services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: providerwrapper
+      POSTGRES_DB: wrapper
       POSTGRES_USER: wrapper
       POSTGRES_PASSWORD: wrapper
     ports:
@@ -15,7 +19,7 @@ services:
     volumes:
       - provider-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wrapper -d providerwrapper"]
+      test: ["CMD-SHELL", "pg_isready -U wrapper"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -29,17 +33,14 @@ services:
       ASPNETCORE_URLS: http://+:8080
       MemberAuth__Mode: Local
       MemberAuth__ExposeTokensInResponses: "true"
-      ConnectionStrings__LocalAuthDb: "Host=db;Port=5432;Database=providerwrapper;Username=wrapper;Password=wrapper"
+      ConnectionStrings__WrapperDb: "Host=db;Port=5432;Database=wrapper;Username=wrapper;Password=wrapper"
+      ConnectionStrings__LocalAuthDb: "Host=db;Port=5432;Database=localauth;Username=wrapper;Password=wrapper"
       Jwt__SigningKey: "dev-only-ustin-provider-wrapper-signing-key-change-me-32b+"
-      Wrapper__DataDirectory: /data
     ports:
       - "8090:8080"
-    volumes:
-      - provider-wrapper-data:/data
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   provider-db-data:
-  provider-wrapper-data:

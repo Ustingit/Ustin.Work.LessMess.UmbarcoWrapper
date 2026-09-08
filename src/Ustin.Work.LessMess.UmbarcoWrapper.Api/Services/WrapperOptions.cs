@@ -15,9 +15,6 @@ public sealed class WrapperOptions
     /// <summary>Trust a self-signed Umbraco TLS cert (local/dev only).</summary>
     public bool AllowInvalidCertificate { get; set; }
 
-    /// <summary>Directory for the persistent layer (session maps + audit log).</summary>
-    public string DataDirectory { get; set; } = "App_Data";
-
     public string ManagementBaseUrl => string.IsNullOrWhiteSpace(UmbracoManagementBaseUrl)
         ? UmbracoBaseUrl
         : UmbracoManagementBaseUrl;
