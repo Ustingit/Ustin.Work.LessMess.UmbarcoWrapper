@@ -28,6 +28,10 @@ builder.Services.AddWrapperSwagger(builder.Configuration);
 // X-Client-Id / X-Client-Key (cheap filter + revocable kill-switch).
 builder.Services.AddClientGate(builder.Configuration);
 
+// Rate limiting: per client+IP windows on the sensitive endpoints + a global
+// concurrency backstop protecting the DB / Umbraco.
+builder.Services.AddWrapperRateLimiting(builder.Configuration);
+
 builder.Services.AddSingleton<ISessionStore, FileSessionStore>();
 builder.Services.AddSingleton<IAuditLog, FileAuditLog>();
 builder.Services.AddScoped<WrapperSession>();
@@ -74,6 +78,7 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.UseClientGate();
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

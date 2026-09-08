@@ -207,6 +207,27 @@ Local dev credentials are in `appsettings.json`; ready-to-run requests are in
 `HttpContext.Items["ClientId"]` for logging and rate-limit partitioning. Set
 `ClientGate__Enabled=false` if a service mesh already authenticates callers.
 
+### Rate limiting (`RateLimiting`)
+
+`AddWrapperRateLimiting` (`src/…Api/Security/RateLimitingExtensions.cs`) registers
+fixed-window policies on the brute-force surfaces plus a global concurrency
+backstop. Rejections return `429` + `Retry-After` + problem+json, and are logged.
+
+| Policy / endpoints | Partition | Default |
+|---|---|---|
+| `auth-login` — `/login`, `/password/reset`, `/email/confirm` | client id + IP | 10 / 60 s |
+| `auth-refresh` — `/token/refresh` | client id + IP | 30 / 60 s |
+| `auth-forgot` — `/password/forgot`, `/email/resend` | IP | 5 / 15 min |
+| `auth-register` — `/register` | IP | 5 / hour |
+| global backstop — every request | — | 100 concurrent, queue 50 |
+
+All limits are configurable per environment; `RateLimiting__Enabled=false`
+disables the per-endpoint policies (the rejection handler stays). Behind more than
+one instance the limiter is per-instance — move to a distributed store (Redis) or
+rely on an edge WAF for a shared view. Account lockout (Identity, 5 failed →
+locked) runs alongside it — a rapid wrong-password loop hits `401` × 5, then
+`403` locked, then `429`.
+
 ## Tests
 
 * `tests/Ustin.Work.LessMess.UmbarcoWrapper.Tests` — xUnit unit tests for the
