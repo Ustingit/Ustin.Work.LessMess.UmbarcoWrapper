@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Ustin.Work.LessMess.UmbarcoWrapper.Api.Security;
 using Microsoft.Extensions.Options;
 
 using Ustin.Work.LessMess.UmbarcoWrapper.Core.Auth;
@@ -31,18 +33,22 @@ public sealed class MemberAuthController : ControllerBase
         Request.Headers.UserAgent.ToString());
 
     [HttpPost("register")]
+    [EnableRateLimiting(RateLimitPolicies.Register)]
     public async Task<IActionResult> Register(RegisterRequest request, CancellationToken ct) =>
         Map(await _provider.RegisterAsync(request, Ctx, ct));
 
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<IActionResult> Login(LoginRequest request, CancellationToken ct) =>
         Map(await _provider.LoginAsync(request, Ctx, ct));
 
     [HttpPost("token/refresh")]
+    [EnableRateLimiting(RateLimitPolicies.Refresh)]
     public async Task<IActionResult> Refresh(RefreshRequest request, CancellationToken ct) =>
         Map(await _provider.RefreshAsync(request, Ctx, ct));
 
     [HttpPost("password/forgot")]
+    [EnableRateLimiting(RateLimitPolicies.PasswordForgot)]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken ct)
     {
         AuthResult<MessageResult> r = await _provider.ForgotPasswordAsync(request, ct);
@@ -50,6 +56,7 @@ public sealed class MemberAuthController : ControllerBase
     }
 
     [HttpPost("password/reset")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken ct) =>
         MapNoContent(await _provider.ResetPasswordAsync(request, ct));
 
@@ -76,10 +83,12 @@ public sealed class MemberAuthController : ControllerBase
     }
 
     [HttpPost("email/confirm")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request, CancellationToken ct) =>
         MapNoContent(await _provider.ConfirmEmailAsync(request, ct));
 
     [HttpPost("email/resend")]
+    [EnableRateLimiting(RateLimitPolicies.PasswordForgot)]
     public async Task<IActionResult> ResendConfirmation(ForgotPasswordRequest request, CancellationToken ct)
     {
         AuthResult<MessageResult> r = await _provider.ResendConfirmationAsync(request, ct);

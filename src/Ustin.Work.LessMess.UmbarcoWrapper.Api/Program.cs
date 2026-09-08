@@ -1,6 +1,7 @@
 using System.Net;
 using Ustin.Work.LessMess.UmbarcoWrapper.Api.Swagger;
 using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.DependencyInjection;
+using Ustin.Work.LessMess.UmbarcoWrapper.Api.Security;
 using Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -22,6 +23,14 @@ builder.Services.AddHttpContextAccessor();
 // Member auth API for the mobile app: Local (Postgres) or Proxy (upstream Umbraco).
 builder.AddWrapperMemberAuth();
 builder.Services.AddWrapperSwagger(builder.Configuration);
+
+// Known-consumer gate: reject calls to /api/member-auth without a valid
+// X-Client-Id / X-Client-Key (cheap filter + revocable kill-switch).
+builder.Services.AddClientGate(builder.Configuration);
+
+// Rate limiting: per client+IP windows on the sensitive endpoints + a global
+// concurrency backstop protecting the DB / Umbraco.
+builder.Services.AddWrapperRateLimiting(builder.Configuration);
 
 builder.Services.AddSingleton<ISessionStore, FileSessionStore>();
 builder.Services.AddSingleton<IAuditLog, FileAuditLog>();
@@ -67,6 +76,9 @@ WebApplication app = builder.Build();
 
 app.UseStaticFiles();
 app.UseRouting();
+
+app.UseClientGate();
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

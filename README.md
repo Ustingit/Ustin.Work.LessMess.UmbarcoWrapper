@@ -172,6 +172,62 @@ Set `MemberAuth__Mode=Proxy`, `MemberAuth__UpstreamBaseUrl=<umbraco url>` and
 wrapper can validate the tokens it forwards). Points at the
 `Umbraco.Cms.MemberJwtAuth` controller.
 
+### Known-consumer gate (`ClientGate`)
+
+Every call to `/api/member-auth/*` must carry an `X-Client-Id` + `X-Client-Key`
+pair that matches a configured client, or it gets `401 Unknown client` **before**
+touching Identity / the database (`src/…Api/Security/ClientGateMiddleware.cs`).
+It's a cheap filter against blind scanners and low-effort scripting, and a
+revocable kill-switch (`"Disabled": true` on a client) — **not** a trust
+boundary: the key ships inside the mobile app and can be read from a proxied
+device. Pair it with the rate limiter and an edge WAF.
+
+```jsonc
+"ClientGate": {
+  "Enabled": true,
+  "ProtectedPathPrefixes": [ "/api/member-auth" ],
+  "Clients": [
+    { "Id": "mobile-app", "Key": "…per environment, from a secret store" }
+  ]
+}
+```
+
+Usage — send both headers on every request:
+
+```bash
+curl -X POST http://localhost:8090/api/member-auth/v1/login \
+  -H 'Content-Type: application/json' \
+  -H 'X-Client-Id: mobile-app' \
+  -H 'X-Client-Key: dev-only-client-key-change-me-per-environment' \
+  -d '{"usernameOrEmail":"member1@example.com","password":"Member12345!"}'
+```
+
+Local dev credentials are in `appsettings.json`; ready-to-run requests are in
+`src/…Api/MemberAuth.http`. The verified client id is put on
+`HttpContext.Items["ClientId"]` for logging and rate-limit partitioning. Set
+`ClientGate__Enabled=false` if a service mesh already authenticates callers.
+
+### Rate limiting (`RateLimiting`)
+
+`AddWrapperRateLimiting` (`src/…Api/Security/RateLimitingExtensions.cs`) registers
+fixed-window policies on the brute-force surfaces plus a global concurrency
+backstop. Rejections return `429` + `Retry-After` + problem+json, and are logged.
+
+| Policy / endpoints | Partition | Default |
+|---|---|---|
+| `auth-login` — `/login`, `/password/reset`, `/email/confirm` | client id + IP | 10 / 60 s |
+| `auth-refresh` — `/token/refresh` | client id + IP | 30 / 60 s |
+| `auth-forgot` — `/password/forgot`, `/email/resend` | IP | 5 / 15 min |
+| `auth-register` — `/register` | IP | 5 / hour |
+| global backstop — every request | — | 100 concurrent, queue 50 |
+
+All limits are configurable per environment; `RateLimiting__Enabled=false`
+disables the per-endpoint policies (the rejection handler stays). Behind more than
+one instance the limiter is per-instance — move to a distributed store (Redis) or
+rely on an edge WAF for a shared view. Account lockout (Identity, 5 failed →
+locked) runs alongside it — a rapid wrong-password loop hits `401` × 5, then
+`403` locked, then `429`.
+
 ## Tests
 
 * `tests/Ustin.Work.LessMess.UmbarcoWrapper.Tests` — xUnit unit tests for the
