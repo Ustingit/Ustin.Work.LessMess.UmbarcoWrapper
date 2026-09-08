@@ -2,21 +2,18 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local;
+using Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository;
 
 #nullable disable
 
-namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migrations
+namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.Migrations
 {
     [DbContext(typeof(LocalAuthDbContext))]
-    [Migration("20260907101216_InitialCreate")]
-    partial class InitialCreate
+    partial class LocalAuthDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -155,7 +152,7 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migration
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.AppUser", b =>
+            modelBuilder.Entity("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -223,7 +220,7 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migration
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.LocalRefreshToken", b =>
+            modelBuilder.Entity("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.LocalRefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -279,7 +276,7 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migration
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
-                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.AppUser", null)
+                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -288,7 +285,7 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migration
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
                 {
-                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.AppUser", null)
+                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -303,7 +300,7 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migration
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.AppUser", null)
+                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -312,7 +309,7 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.Migration
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
-                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Auth.Local.AppUser", null)
+                    b.HasOne("Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)

@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Collections.Concurrent;
 
 namespace Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;
 
@@ -23,87 +23,44 @@ public interface IBackofficeSessionStore
 }
 
 /// <summary>
-///     File-backed (<c>backoffice-sessions.json</c>). Kept separate from the v1
-///     <see cref="FileSessionStore"/> so the two auth models stay fully independent
-///     and can be exercised side by side.
+///     In-memory store for the v2 back-office BFF cookie set. Kept separate from
+///     the v1 <see cref="InMemorySessionStore"/> so the two auth models stay fully
+///     independent and can be exercised side by side.
 /// </summary>
-public sealed class BackofficeSessionStore : IBackofficeSessionStore
+public sealed class InMemoryBackofficeSessionStore : IBackofficeSessionStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly ConcurrentDictionary<string, BackofficeSessionRecord> _sessions = new();
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly string _path;
-
-    public BackofficeSessionStore(WrapperOptions options)
-    {
-        Directory.CreateDirectory(options.DataDirectory);
-        _path = Path.Combine(options.DataDirectory, "backoffice-sessions.json");
-    }
-
-    public async Task<string> CreateAsync(string username, BffSession session, string? ip)
+    public Task<string> CreateAsync(string username, BffSession session, string? ip)
     {
         var sessionId = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
-        await MutateAsync(map => map[sessionId] = new BackofficeSessionRecord(
-            username, session.Cookies, session.ExpiresAtUtc, ip, now, now));
-        return sessionId;
+        _sessions[sessionId] = new BackofficeSessionRecord(
+            username, session.Cookies, session.ExpiresAtUtc, ip, now, now);
+        return Task.FromResult(sessionId);
     }
 
-    public async Task<BackofficeSessionRecord?> GetAsync(string sessionId)
+    public Task<BackofficeSessionRecord?> GetAsync(string sessionId) =>
+        Task.FromResult(_sessions.GetValueOrDefault(sessionId));
+
+    public Task RefreshAsync(string sessionId, BffSession session)
     {
-        await _gate.WaitAsync();
-        try
+        if (_sessions.TryGetValue(sessionId, out BackofficeSessionRecord? existing))
         {
-            return Load().GetValueOrDefault(sessionId);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public Task RefreshAsync(string sessionId, BffSession session) =>
-        MutateAsync(map =>
-        {
-            if (map.TryGetValue(sessionId, out BackofficeSessionRecord? existing))
+            _sessions[sessionId] = existing with
             {
-                map[sessionId] = existing with
-                {
-                    Cookies = session.Cookies,
-                    ExpiresAtUtc = session.ExpiresAtUtc,
-                    LastSeenUtc = DateTimeOffset.UtcNow,
-                };
-            }
-        });
-
-    public Task RemoveAsync(string sessionId) => MutateAsync(map => map.Remove(sessionId));
-
-    private async Task MutateAsync(Action<Dictionary<string, BackofficeSessionRecord>> mutation)
-    {
-        await _gate.WaitAsync();
-        try
-        {
-            Dictionary<string, BackofficeSessionRecord> map = Load();
-            mutation(map);
-            await File.WriteAllTextAsync(_path, JsonSerializer.Serialize(map, JsonOptions));
+                Cookies = session.Cookies,
+                ExpiresAtUtc = session.ExpiresAtUtc,
+                LastSeenUtc = DateTimeOffset.UtcNow,
+            };
         }
-        finally
-        {
-            _gate.Release();
-        }
+
+        return Task.CompletedTask;
     }
 
-    private Dictionary<string, BackofficeSessionRecord> Load()
+    public Task RemoveAsync(string sessionId)
     {
-        if (!File.Exists(_path))
-        {
-            return new Dictionary<string, BackofficeSessionRecord>();
-        }
-
-        var json = File.ReadAllText(_path);
-        return string.IsNullOrWhiteSpace(json)
-            ? new Dictionary<string, BackofficeSessionRecord>()
-            : JsonSerializer.Deserialize<Dictionary<string, BackofficeSessionRecord>>(json)
-              ?? new Dictionary<string, BackofficeSessionRecord>();
+        _sessions.TryRemove(sessionId, out _);
+        return Task.CompletedTask;
     }
 }

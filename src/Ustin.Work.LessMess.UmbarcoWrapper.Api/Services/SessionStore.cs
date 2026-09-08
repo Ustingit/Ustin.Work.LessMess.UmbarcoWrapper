@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Collections.Concurrent;
 
 namespace Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;
 
@@ -23,89 +23,43 @@ public interface ISessionStore
 }
 
 /// <summary>
-///     File-backed session map (<c>{DataDirectory}/sessions.json</c>). No database:
-///     the wrapper keeps only the mapping wrapper-session-id → raw Umbraco Set-Cookie
-///     values, so it can replay them as the logged-in member on later calls.
+///     In-memory session map: wrapper-session-id → raw Umbraco Set-Cookie values,
+///     so the wrapper can replay them as the logged-in member on later calls.
+///     Lives only while the process runs; a restart signs everyone out (acceptable
+///     for this proxy — the credential proof is the upstream cookie, not our state).
 /// </summary>
-public sealed class FileSessionStore : ISessionStore
+public sealed class InMemorySessionStore : ISessionStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly ConcurrentDictionary<string, SessionRecord> _sessions = new();
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly string _path;
-
-    public FileSessionStore(WrapperOptions options)
-    {
-        Directory.CreateDirectory(options.DataDirectory);
-        _path = Path.Combine(options.DataDirectory, "sessions.json");
-    }
-
-    public async Task<string> CreateAsync(string username, string email, string cookies, string? ip)
+    public Task<string> CreateAsync(string username, string email, string cookies, string? ip)
     {
         var sessionId = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
-
-        await MutateAsync(map => map[sessionId] = new SessionRecord(username, email, cookies, ip, now, now));
-        return sessionId;
+        _sessions[sessionId] = new SessionRecord(username, email, cookies, ip, now, now);
+        return Task.FromResult(sessionId);
     }
 
-    public async Task<SessionRecord?> GetAsync(string sessionId)
+    public Task<SessionRecord?> GetAsync(string sessionId) =>
+        Task.FromResult(_sessions.GetValueOrDefault(sessionId));
+
+    public Task TouchAsync(string sessionId, string? cookies = null)
     {
-        await _gate.WaitAsync();
-        try
+        if (_sessions.TryGetValue(sessionId, out SessionRecord? existing))
         {
-            return Load().GetValueOrDefault(sessionId);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public Task TouchAsync(string sessionId, string? cookies = null) =>
-        MutateAsync(map =>
-        {
-            if (map.TryGetValue(sessionId, out SessionRecord? existing))
+            _sessions[sessionId] = existing with
             {
-                map[sessionId] = existing with
-                {
-                    LastSeenUtc = DateTimeOffset.UtcNow,
-                    Cookies = string.IsNullOrEmpty(cookies) ? existing.Cookies : cookies,
-                };
-            }
-        });
-
-    public Task RemoveAsync(string sessionId) => MutateAsync(map => map.Remove(sessionId));
-
-    private async Task MutateAsync(Action<Dictionary<string, SessionRecord>> mutation)
-    {
-        await _gate.WaitAsync();
-        try
-        {
-            Dictionary<string, SessionRecord> map = Load();
-            mutation(map);
-            await File.WriteAllTextAsync(_path, JsonSerializer.Serialize(map, JsonOptions));
+                LastSeenUtc = DateTimeOffset.UtcNow,
+                Cookies = string.IsNullOrEmpty(cookies) ? existing.Cookies : cookies,
+            };
         }
-        finally
-        {
-            _gate.Release();
-        }
+
+        return Task.CompletedTask;
     }
 
-    private Dictionary<string, SessionRecord> Load()
+    public Task RemoveAsync(string sessionId)
     {
-        if (!File.Exists(_path))
-        {
-            return new Dictionary<string, SessionRecord>();
-        }
-
-        var json = File.ReadAllText(_path);
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return new Dictionary<string, SessionRecord>();
-        }
-
-        return JsonSerializer.Deserialize<Dictionary<string, SessionRecord>>(json)
-               ?? new Dictionary<string, SessionRecord>();
+        _sessions.TryRemove(sessionId, out _);
+        return Task.CompletedTask;
     }
 }

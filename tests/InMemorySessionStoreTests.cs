@@ -3,15 +3,12 @@ using Xunit;
 
 namespace Ustin.Work.LessMess.UmbarcoWrapper.Tests;
 
-public sealed class FileSessionStoreTests
+public sealed class InMemorySessionStoreTests
 {
-    private static WrapperOptions Options(TempDir dir) => new() { DataDirectory = dir.Path };
-
     [Fact]
     public async Task Create_then_Get_round_trips_the_record()
     {
-        using var dir = new TempDir();
-        var store = new FileSessionStore(Options(dir));
+        var store = new InMemorySessionStore();
 
         var id = await store.CreateAsync("alice", "alice@example.com", ".auth=abc; extra=1", "10.0.0.5");
         SessionRecord? record = await store.GetAsync(id);
@@ -24,22 +21,9 @@ public sealed class FileSessionStoreTests
     }
 
     [Fact]
-    public async Task Session_survives_a_new_store_instance_same_directory()
-    {
-        using var dir = new TempDir();
-        var id = await new FileSessionStore(Options(dir)).CreateAsync("bob", "bob@example.com", ".auth=xyz", null);
-
-        SessionRecord? record = await new FileSessionStore(Options(dir)).GetAsync(id);
-
-        Assert.NotNull(record);
-        Assert.Equal("bob", record!.Username);
-    }
-
-    [Fact]
     public async Task Touch_updates_LastSeen_and_optionally_cookies()
     {
-        using var dir = new TempDir();
-        var store = new FileSessionStore(Options(dir));
+        var store = new InMemorySessionStore();
         var id = await store.CreateAsync("carol", "c@example.com", ".auth=old", null);
         SessionRecord created = (await store.GetAsync(id))!;
 
@@ -55,8 +39,7 @@ public sealed class FileSessionStoreTests
     [Fact]
     public async Task Touch_without_cookies_keeps_the_existing_cookies()
     {
-        using var dir = new TempDir();
-        var store = new FileSessionStore(Options(dir));
+        var store = new InMemorySessionStore();
         var id = await store.CreateAsync("dave", "d@example.com", ".auth=keep", null);
 
         await store.TouchAsync(id);
@@ -65,10 +48,19 @@ public sealed class FileSessionStoreTests
     }
 
     [Fact]
+    public async Task Touch_on_an_unknown_id_is_a_no_op()
+    {
+        var store = new InMemorySessionStore();
+
+        await store.TouchAsync("nope", ".auth=x");
+
+        Assert.Null(await store.GetAsync("nope"));
+    }
+
+    [Fact]
     public async Task Remove_deletes_the_session()
     {
-        using var dir = new TempDir();
-        var store = new FileSessionStore(Options(dir));
+        var store = new InMemorySessionStore();
         var id = await store.CreateAsync("erin", "e@example.com", ".auth=1", null);
 
         await store.RemoveAsync(id);
@@ -79,9 +71,6 @@ public sealed class FileSessionStoreTests
     [Fact]
     public async Task Get_returns_null_for_an_unknown_id()
     {
-        using var dir = new TempDir();
-        var store = new FileSessionStore(Options(dir));
-
-        Assert.Null(await store.GetAsync("nope"));
+        Assert.Null(await new InMemorySessionStore().GetAsync("nope"));
     }
 }

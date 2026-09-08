@@ -5,6 +5,8 @@
   <Folder Name="/src/">
     <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Core/Ustin.Work.LessMess.UmbarcoWrapper.Core.csproj" />
     <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure/Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.csproj" />
+    <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Repository/Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.Repository.csproj" />
+    <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository/Ustin.Work.LessMess.UmbarcoWrapper.Infrastructure.LocalAuthRepository.csproj" />
     <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Api/Ustin.Work.LessMess.UmbarcoWrapper.Api.csproj" />
     <Project Path="src/Ustin.Work.LessMess.UmbarcoWrapper.Worker/Ustin.Work.LessMess.UmbarcoWrapper.Worker.csproj" />
   </Folder>

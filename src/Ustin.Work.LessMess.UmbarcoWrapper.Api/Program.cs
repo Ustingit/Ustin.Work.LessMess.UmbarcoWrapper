@@ -11,8 +11,6 @@ var options = new WrapperOptions
     UmbracoBaseUrl = builder.Configuration["Umbraco:BaseUrl"] ?? "http://localhost:8080",
     UmbracoManagementBaseUrl = builder.Configuration["Umbraco:ManagementBaseUrl"],
     AllowInvalidCertificate = builder.Configuration.GetValue("Umbraco:AllowInvalidCertificate", false),
-    DataDirectory = builder.Configuration["Wrapper:DataDirectory"]
-                    ?? Path.Combine(builder.Environment.ContentRootPath, "App_Data"),
 };
 builder.Services.AddSingleton(options);
 
@@ -32,12 +30,11 @@ builder.Services.AddClientGate(builder.Configuration);
 // concurrency backstop protecting the DB / Umbraco.
 builder.Services.AddWrapperRateLimiting(builder.Configuration);
 
-builder.Services.AddSingleton<ISessionStore, FileSessionStore>();
-builder.Services.AddSingleton<IAuditLog, FileAuditLog>();
+builder.Services.AddSingleton<ISessionStore, InMemorySessionStore>();
 builder.Services.AddScoped<WrapperSession>();
 
 // v2 (back-office JWT) persistence + helper.
-builder.Services.AddSingleton<IBackofficeSessionStore, BackofficeSessionStore>();
+builder.Services.AddSingleton<IBackofficeSessionStore, InMemoryBackofficeSessionStore>();
 builder.Services.AddScoped<BackofficeSession>();
 
 builder.Services
