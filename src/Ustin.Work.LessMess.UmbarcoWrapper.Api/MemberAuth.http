@@ -1,0 +1,41 @@
+@host = http://localhost:8090
+@base = {{host}}/api/member-auth/v1
+
+### every member-auth call needs the known-consumer headers
+@clientId = mobile-app
+@clientKey = dev-only-client-key-change-me-per-environment
+
+### login  (seeded dev member; Local mode)
+# @name login
+POST {{base}}/login
+Content-Type: application/json
+X-Client-Id: {{clientId}}
+X-Client-Key: {{clientKey}}
+
+{ "usernameOrEmail": "member1@example.com", "password": "Member12345!" }
+
+### current member
+GET {{base}}/me
+Authorization: Bearer {{login.response.body.accessToken}}
+X-Client-Id: {{clientId}}
+X-Client-Key: {{clientKey}}
+
+### same call WITHOUT the client headers  -> 401 "Unknown client" (before Identity/DB)
+GET {{base}}/me
+Authorization: Bearer {{login.response.body.accessToken}}
+
+### register
+POST {{base}}/register
+Content-Type: application/json
+X-Client-Id: {{clientId}}
+X-Client-Key: {{clientKey}}
+
+{ "username": "jane", "email": "jane@example.com", "password": "JanePass12345!", "name": "Jane Doe" }
+
+### refresh
+POST {{base}}/token/refresh
+Content-Type: application/json
+X-Client-Id: {{clientId}}
+X-Client-Key: {{clientKey}}
+
+{ "refreshToken": "{{login.response.body.refreshToken}}" }
