@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Ustin.Work.LessMess.UmbarcoWrapper.Api.Services;
 using Xunit;
 
@@ -5,10 +6,13 @@ namespace Ustin.Work.LessMess.UmbarcoWrapper.Tests;
 
 public sealed class InMemorySessionStoreTests
 {
+    private static InMemorySessionStore NewStore(SessionCacheOptions? opts = null) =>
+        new(Options.Create(opts ?? new SessionCacheOptions()));
+
     [Fact]
     public async Task Create_then_Get_round_trips_the_record()
     {
-        var store = new InMemorySessionStore();
+        var store = NewStore();
 
         var id = await store.CreateAsync("alice", "alice@example.com", ".auth=abc; extra=1", "10.0.0.5");
         SessionRecord? record = await store.GetAsync(id);
@@ -23,7 +27,7 @@ public sealed class InMemorySessionStoreTests
     [Fact]
     public async Task Touch_updates_LastSeen_and_optionally_cookies()
     {
-        var store = new InMemorySessionStore();
+        var store = NewStore();
         var id = await store.CreateAsync("carol", "c@example.com", ".auth=old", null);
         SessionRecord created = (await store.GetAsync(id))!;
 
@@ -39,7 +43,7 @@ public sealed class InMemorySessionStoreTests
     [Fact]
     public async Task Touch_without_cookies_keeps_the_existing_cookies()
     {
-        var store = new InMemorySessionStore();
+        var store = NewStore();
         var id = await store.CreateAsync("dave", "d@example.com", ".auth=keep", null);
 
         await store.TouchAsync(id);
@@ -50,7 +54,7 @@ public sealed class InMemorySessionStoreTests
     [Fact]
     public async Task Touch_on_an_unknown_id_is_a_no_op()
     {
-        var store = new InMemorySessionStore();
+        var store = NewStore();
 
         await store.TouchAsync("nope", ".auth=x");
 
@@ -60,7 +64,7 @@ public sealed class InMemorySessionStoreTests
     [Fact]
     public async Task Remove_deletes_the_session()
     {
-        var store = new InMemorySessionStore();
+        var store = NewStore();
         var id = await store.CreateAsync("erin", "e@example.com", ".auth=1", null);
 
         await store.RemoveAsync(id);
@@ -71,6 +75,16 @@ public sealed class InMemorySessionStoreTests
     [Fact]
     public async Task Get_returns_null_for_an_unknown_id()
     {
-        Assert.Null(await new InMemorySessionStore().GetAsync("nope"));
+        Assert.Null(await NewStore().GetAsync("nope"));
+    }
+
+    [Fact]
+    public async Task Session_past_its_absolute_lifetime_is_gone()
+    {
+        var store = NewStore(new SessionCacheOptions { MaxLifetime = TimeSpan.Zero });
+
+        var id = await store.CreateAsync("mallory", "m@example.com", ".auth=1", null);
+
+        Assert.Null(await store.GetAsync(id));
     }
 }

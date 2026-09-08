@@ -35,7 +35,7 @@ src/
 `Api` → `Infrastructure` → { `Repository`, `LocalAuthRepository` } → `Core`.
 Two Postgres databases (own DbContext, own `__EFMigrationsHistory`, own connection
 string — `WrapperDb` / `LocalAuthDb`). Session state (the v1/v2 Umbraco cookie
-maps) is a `ConcurrentDictionary`, not persisted. The `Worker` will reference
+maps) is not persisted — see below. The `Worker` will reference
 `…Infrastructure.Repository` only (for the outbox), never DB B.
 
 ### Switching a deployment from Local to Proxy
@@ -63,11 +63,17 @@ Plain `[ApiController]` endpoints that use Umbraco's own services:
 
 ### Wrapper session state (`src/…Api/Services`)
 
-`InMemorySessionStore` / `InMemoryBackofficeSessionStore` — a `ConcurrentDictionary`
-of *wrapper session id* → *raw Umbraco `Set-Cookie` values*, so the wrapper can
-replay them as the logged-in member on later requests. It lives only while the
-process runs; a restart signs everyone out (the credential proof is the upstream
-cookie, not our state). No file, no volume.
+`InMemorySessionStore` / `InMemoryBackofficeSessionStore` — a *wrapper session id*
+→ *raw Umbraco `Set-Cookie` values* map, so the wrapper can replay them as the
+logged-in member on later requests. Each store has its own bounded `MemoryCache`:
+a sliding `Sessions:IdleTimeout` (30 min), an absolute `Sessions:MaxLifetime`
+(8 h) computed from creation so a touch can't extend it, `Sessions:MaxEntries`
+as a size cap, and — for v2 — the absolute expiry clamped to the BFF cookie
+set's own expiry. It lives only while the process runs; a restart signs everyone
+out (the credential proof is the upstream cookie, not our state). No file, no
+volume. To share sessions across instances, swap the `MemoryCache` for
+`HybridCache` + a Redis `IDistributedCache` — the `ISessionStore` /
+`IBackofficeSessionStore` interfaces don't change.
 
 The **audit trail** is a separate, durable concern — see the persistence
 projects below. Entries are also mirrored to `ILogger` (so `docker logs` shows

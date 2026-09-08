@@ -51,6 +51,8 @@ try
     // concurrency backstop protecting the DB / Umbraco.
     builder.Services.AddWrapperRateLimiting(builder.Configuration);
 
+    builder.Services.AddOptions<SessionCacheOptions>()
+        .Bind(builder.Configuration.GetSection(SessionCacheOptions.SectionName));
     builder.Services.AddSingleton<ISessionStore, InMemorySessionStore>();
     builder.Services.AddScoped<WrapperSession>();
 
